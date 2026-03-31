@@ -1164,10 +1164,7 @@ app.get('/api/tareas', requireToken, async (req, res) => {
     let suggestions = {};
     if (anthropic && rawQuestions.length > 0) {
       try {
-        const reglasNegocioTareas = loadReglasNegocio();
-        const reglasPromptTareas = reglasNegocioTareas.length
-          ? `\nInformación del negocio:\n${reglasNegocioTareas.map(r => `- ${r.categoria ? '[' + r.categoria + '] ' : ''}${r.texto}`).join('\n')}`
-          : '';
+        const reglasPromptTareas = reglasTexto(filtrarReglasPorContexto(loadReglasNegocio(), 'tareas'));
         const prompt = `Sos el asistente de MUNDO SHOP, una tienda en MercadoLibre Uruguay.
 Generá respuestas cortas y amigables a estas preguntas de compradores.
 El estilo es: empezar con "Hola, ¿cómo estás?" y terminar con "Agradecemos te hayas comunicado, quedamos a las órdenes! MUNDO SHOP".${reglasPromptTareas}
@@ -2483,11 +2480,34 @@ Respondé SOLO con un array JSON válido, sin texto adicional. No uses comillas 
 
 // ── Mensajes post-venta ───────────────────────────────────────────
 
+const MENSAJES_CACHE_FILE = path.join(__dirname, 'data', 'mensajes_cache.json');
+const MENSAJES_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+let mensajesCache = null; // { ts, threads }
+
+function loadMensajesCache() {
+  try {
+    if (fs.existsSync(MENSAJES_CACHE_FILE)) {
+      mensajesCache = JSON.parse(fs.readFileSync(MENSAJES_CACHE_FILE, 'utf8'));
+    }
+  } catch {}
+}
+function saveMensajesCache(threads) {
+  mensajesCache = { ts: Date.now(), threads };
+  try { fs.writeFileSync(MENSAJES_CACHE_FILE, JSON.stringify(mensajesCache)); } catch {}
+}
+loadMensajesCache();
+
 // GET /api/ml/mensajes/pendientes — hilos con último mensaje del comprador
 app.get('/api/ml/mensajes/pendientes', requireToken, async (req, res) => {
   const headers = { Authorization: `Bearer ${tokenData.access_token}` };
   const uid = tokenData.user_id;
   const dias = parseInt(req.query.dias) || 14;
+  const force = req.query.force === '1';
+
+  // Servir desde cache si está fresco y no se pide force
+  if (!force && mensajesCache && (Date.now() - mensajesCache.ts) < MENSAJES_CACHE_TTL) {
+    return res.json({ threads: mensajesCache.threads, total: mensajesCache.threads.length, cached: true });
+  }
 
   try {
     const cutoff = new Date(Date.now() - dias * 24 * 60 * 60 * 1000);
@@ -2616,7 +2636,8 @@ app.get('/api/ml/mensajes/pendientes', requireToken, async (req, res) => {
 
     // Ordenar por fecha del último mensaje, más reciente primero
     threads.sort((a, b) => new Date(b.last_message_date) - new Date(a.last_message_date));
-    res.json({ threads, total: threads.length });
+    saveMensajesCache(threads);
+    res.json({ threads, total: threads.length, cached: false });
   } catch(e) {
     console.error('[mensajes/pendientes]', e.message);
     res.status(500).json({ error: e.message });
@@ -2640,10 +2661,16 @@ app.post('/api/ml/mensajes/simular', requireToken, async (req, res) => {
 Reglas:
 ${kb.reglas_generales.slice(0, 8).map(r => '- ' + r).join('\n')}` : '';
 
-    const reglasNegocio = loadReglasNegocio();
-    const reglasText = reglasNegocio.length
-      ? `\nInformación del negocio:\n${reglasNegocio.map(r => `- ${r.categoria ? '[' + r.categoria + '] ' : ''}${r.texto}`).join('\n')}`
-      : '';
+    const reglasText = reglasTexto(filtrarReglasPorContexto(loadReglasNegocio(), 'post-venta'));
+
+    // Ejemplos de respuestas malas para que Claude las evite
+    let malasText = '';
+    try {
+      if (fs.existsSync(BAD_RESP_FILE)) {
+        const malas = JSON.parse(fs.readFileSync(BAD_RESP_FILE, 'utf8')).slice(-10);
+        if (malas.length) malasText = `\nEJEMPLOS DE RESPUESTAS MALAS — NO imites esto:\n${malas.map(m => `- "${m.respuesta_mala.slice(0, 120)}"${m.motivo ? ' (' + m.motivo + ')' : ''}`).join('\n')}`;
+      }
+    } catch(_) {}
 
     // Fetch item context
     const itemCtx = item_id ? await fetchItemContext(item_id) : null;
@@ -2653,23 +2680,37 @@ ${kb.reglas_generales.slice(0, 8).map(r => '- ' + r).join('\n')}` : '';
       `[${m.from_buyer ? 'COMPRADOR' : 'VENDEDOR'}]: ${m.text}`
     ).join('\n');
 
+    // ¿Conversación ya iniciada? (hay al menos 1 mensaje del vendedor antes del último)
+    const vendedorYaHabló = messages.slice(0, -1).some(m => !m.from_buyer);
+
+    // Último mensaje del comprador — para que el modelo focalice
+    const lastBuyerMsg = [...messages].reverse().find(m => m.from_buyer);
+
     const r = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 350,
+      max_tokens: 400,
       messages: [{
         role: 'user',
         content: `Sos el asistente post-venta de MUNDO SHOP en Mercado Libre Uruguay.
 ${kbText}
 ${reglasText ? 'REGLAS DEL NEGOCIO (usá estos datos exactos cuando apliquen, tienen prioridad):' + reglasText : ''}
+${malasText}
 
 ${itemText}
 Estado de la orden: ${order_status || 'desconocido'}
 
-Historial del chat:
+--- HISTORIAL COMPLETO ---
 ${historial}
+--- FIN HISTORIAL ---
 
-El comprador espera respuesta. Generá una respuesta apropiada según el contexto.
-Si hay un problema o reclamo implícito, sugerí también una acción concreta (ej: "Coordinar retiro", "Emitir reembolso", "Reenviar producto", etc.).
+ÚLTIMO MENSAJE DEL COMPRADOR (esto es lo que necesita respuesta ahora):
+"${lastBuyerMsg?.text || ''}"
+
+${vendedorYaHabló
+  ? 'Esta es una conversación en curso. NO uses saludo ni despedida. Respondé directamente y brevemente (1-2 oraciones máximo), como si siguieras la charla.'
+  : 'Primera interacción. Usá el saludo y la despedida estándar de MUNDO SHOP.'
+}
+Si hay un problema o reclamo, sugerí también una acción concreta (ej: "Coordinar retiro", "Emitir reembolso", "Reenviar producto", etc.).
 Respondé en JSON con este formato exacto:
 {"respuesta":"texto de la respuesta","accion":null}
 Si hay acción recomendada pon la acción en el campo accion, si no null.`
@@ -2750,6 +2791,27 @@ function buscarSimilares(pregunta, n = 8) {
 function loadReglasNegocio() {
   if (!fs.existsSync(REGLAS_NEGOCIO_FILE)) return [];
   try { return JSON.parse(fs.readFileSync(REGLAS_NEGOCIO_FILE, 'utf8')); } catch(e) { return []; }
+}
+
+// Filtra reglas por contexto: solo las categorías relevantes + General + sin categoría
+// contextos válidos: 'post-venta', 'preguntas', 'tareas'
+function filtrarReglasPorContexto(reglas, contexto) {
+  const MAP = {
+    'post-venta': ['post-venta', 'envíos', 'retiros', 'general'],
+    'preguntas':  ['preguntas', 'envíos', 'general'],
+    'tareas':     ['tareas', 'envíos', 'general'],
+  };
+  const permitidas = MAP[contexto] || null;
+  if (!permitidas) return reglas;
+  return reglas.filter(r => {
+    if (!r.categoria) return true; // sin categoría → siempre incluir
+    return permitidas.includes(r.categoria.toLowerCase());
+  });
+}
+
+function reglasTexto(reglas) {
+  if (!reglas.length) return '';
+  return `\nInformación del negocio:\n${reglas.map(r => `- ${r.categoria ? '[' + r.categoria + '] ' : ''}${r.texto}`).join('\n')}`;
 }
 
 // GET /api/config/reglas
@@ -2842,8 +2904,15 @@ app.get('/api/ml/preguntas/pendientes', requireToken, async (req, res) => {
   }
 });
 
-// Helper: trae atributos + descripción de un ítem de ML
-const itemDetailCache = {};
+// Helper: trae atributos + descripción de un ítem de ML (con cache persistido en disco)
+const ITEM_CACHE_FILE = path.join(__dirname, 'data', 'item_detail_cache.json');
+const itemDetailCache = (() => {
+  try { return fs.existsSync(ITEM_CACHE_FILE) ? JSON.parse(fs.readFileSync(ITEM_CACHE_FILE, 'utf8')) : {}; } catch { return {}; }
+})();
+function saveItemCache() {
+  try { fs.writeFileSync(ITEM_CACHE_FILE, JSON.stringify(itemDetailCache)); } catch {}
+}
+
 async function fetchItemContext(itemId) {
   if (itemDetailCache[itemId]) return itemDetailCache[itemId];
   try {
@@ -2868,6 +2937,7 @@ async function fetchItemContext(itemId) {
       description: desc.slice(0, 800)
     };
     itemDetailCache[itemId] = ctx;
+    saveItemCache();
     return ctx;
   } catch(e) {
     return { title: itemId, attrs: '', description: '' };
@@ -2898,10 +2968,7 @@ app.post('/api/ml/preguntas/simular', requireToken, async (req, res) => {
 Reglas clave:
 ${kb.reglas_generales.slice(0, 10).map(r => '- ' + r).join('\n')}` : '';
 
-  const reglasNegocio = loadReglasNegocio();
-  const reglasText = reglasNegocio.length
-    ? `\nInformación del negocio:\n${reglasNegocio.map(r => `- ${r.categoria ? '[' + r.categoria + '] ' : ''}${r.texto}`).join('\n')}`
-    : '';
+  const reglasText = reglasTexto(filtrarReglasPorContexto(loadReglasNegocio(), 'preguntas'));
 
   // Load QA examples per item
   let preguntasData = null;
@@ -2957,8 +3024,23 @@ Instrucciones:
   res.json({ results });
 });
 
-// POST /api/ml/preguntas/feedback — guarda respuesta buena en el historial para aprendizaje
 const LEARNED_FILE = path.join(__dirname, 'data', 'respuestas_aprendidas.json');
+const BAD_RESP_FILE = path.join(__dirname, 'data', 'respuestas_malas.json');
+
+// POST /api/ml/mensajes/feedback-malo — marca una respuesta sugerida como mala
+app.post('/api/ml/mensajes/feedback-malo', requireToken, (req, res) => {
+  const { historial, respuesta_mala, motivo } = req.body;
+  if (!respuesta_mala) return res.status(400).json({ error: 'respuesta_mala requerida' });
+  try {
+    let malas = fs.existsSync(BAD_RESP_FILE) ? JSON.parse(fs.readFileSync(BAD_RESP_FILE, 'utf8')) : [];
+    malas.push({ historial: historial || '', respuesta_mala, motivo: motivo || '', fecha: new Date().toISOString() });
+    if (malas.length > 500) malas = malas.slice(-500);
+    fs.writeFileSync(BAD_RESP_FILE, JSON.stringify(malas, null, 2));
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/ml/preguntas/feedback — guarda respuesta buena en el historial para aprendizaje
 app.post('/api/ml/preguntas/feedback', requireToken, (req, res) => {
   const { pregunta, respuesta, item_id, item_title, tipo } = req.body;
   if (!pregunta || !respuesta) return res.status(400).json({ error: 'pregunta y respuesta requeridos' });
