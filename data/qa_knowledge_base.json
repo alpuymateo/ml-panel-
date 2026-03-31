@@ -1,0 +1,101 @@
+{
+  "estilo": {
+    "saludo": "Hola, cómo estas?",
+    "despedida": "Agradecemos te hayas comunicado, quedamos a las ordenes! MUNDO SHOP",
+    "tono": "Informal, cercano, directo y amable. Uso de vos. Respuestas cortas y concretas. Minúsculas en su mayoría, sin signos de apertura de exclamación/interrogación.",
+    "notas": "El saludo 'Hola, cómo estas?' se usa en casi todas las respuestas. En respuestas muy cortas o de seguimiento a veces se omite el saludo pero siempre se mantiene la despedida. No se usan tildes de forma consistente. Se escribe de forma informal con algunos errores ortográficos naturales."
+  },
+  "patrones": [
+    {
+      "categoria": "consulta_stock",
+      "descripcion": "Cuando preguntan si tienen disponible un producto o color",
+      "template": "Hola, cómo estas? si, tenemos disponible! Agradecemos te hayas comunicado, quedamos a las ordenes! MUNDO SHOP"
+    },
+    {
+      "categoria": "consulta_envio_interior",
+      "descripcion": "Cuando preguntan si envían al interior del país",
+      "template": "Hola, cómo estas? si, enviamos al interior a traves de agencia DAC Agradecemos te hayas comunicado, quedamos a las ordenes! MUNDO SHOP"
+    },
+    {
+      "categoria": "consulta_costo_envio",
+      "descripcion": "Cuando preguntan el costo de envío a una localidad específica",
+      "template": "Hola, cómo estas? el costo de envio para este articulo es de $[MONTO] aproximadamente Agradecemos te hayas comunicado, quedamos a las ordenes! MUNDO SHOP"
+    },
+    {
+      "categoria": "consulta_retiro_local",
+      "descripcion": "Cuando preguntan si pueden retirar en el local o por horarios",
+      "template": "Hola, cómo estas? si claro, podes pasar a retirarlo estamos de Lunes a Viernes de 9:00 a 18:00 y los Sabados de 9:00 a 13:00 Agradecemos te hayas comunicado, quedamos a las ordenes! MUNDO SHOP"
+    },
+    {
+      "categoria": "problema_envio_no_disponible",
+      "descripcion": "Cuando el sistema de ML no permite envío a la dirección del comprador",
+      "template": "Hola, cómo estas? podes seleccionar la opcion de retiro y coordinar el envio por mensaje interno de tu compra Agradecemos te hayas comunicado, quedamos a las ordenes! MUNDO SHOP"
+    },
+    {
+      "categoria": "consulta_armado",
+      "descripcion": "Cuando preguntan sobre el armado del producto o si viene armado",
+      "template": "Hola, cómo estas? se envia desarmado en caja, dentro del mueble enviamos un sobre con contacto de armadores recomendados Agradecemos te hayas comunicado, quedamos a las ordenes! MUNDO SHOP"
+    },
+    {
+      "categoria": "consulta_medidas_dimensiones",
+      "descripcion": "Cuando preguntan medidas, dimensiones o especificaciones técnicas del producto",
+      "template": "Hola, cómo estas? [DATO ESPECÍFICO] Agradecemos te hayas comunicado, quedamos a las ordenes! MUNDO SHOP"
+    },
+    {
+      "categoria": "consulta_colores_variantes",
+      "descripcion": "Cuando preguntan por colores o variantes disponibles de un producto",
+      "template": "Hola, cómo estas? si, tenemos disponible! te dejo el link: [LINK SI APLICA] Agradecemos te hayas comunicado, quedamos a las ordenes! MUNDO SHOP"
+    },
+    {
+      "categoria": "consulta_pago_cuotas",
+      "descripcion": "Cuando preguntan sobre formas de pago o cuotas",
+      "template": "Hola, cómo estas? para poder abonar en cuotas unicamente con tarjetas de credito Agradecemos te hayas comunicado, quedamos a las ordenes! MUNDO SHOP"
+    },
+    {
+      "categoria": "redireccion_mensaje_interno",
+      "descripcion": "Cuando el cliente ya compró y necesita soporte post-venta",
+      "template": "Hola, cómo estas? te solicitamos que escribas por el chat interno de tu compra, en el detalle de tu compra tenes la opcion de 'enviar mensaje al vendedor' Agradecemos te hayas comunicado, quedamos a las ordenes! MUNDO SHOP"
+    },
+    {
+      "categoria": "consulta_plazo_entrega",
+      "descripcion": "Cuando preguntan cuándo llega o cuánto tarda el envío",
+      "template": "Hola, cómo estas? los envios al interior tienen un plazo de entrega de 5 dias habiles Agradecemos te hayas comunicado, quedamos a las ordenes! MUNDO SHOP"
+    },
+    {
+      "categoria": "consulta_ubicacion_local",
+      "descripcion": "Cuando preguntan dónde están ubicados físicamente",
+      "template": "Hola, cómo estas? Por políticas de Mercado Libre no te podemos dar la dirección exacta por este medio, pero estamos sobre Arenal Grande a la altura del Palacio Legislativo. De lunes a viernes de 9 a 18 hs (de corrido) Sabados de 9 a 13 hs. Agradecemos te hayas comunicado, quedamos a las ordenes! MUNDO SHOP"
+    },
+    {
+      "categoria": "descuentos_mayorista",
+      "descripcion": "Cuando preguntan por descuentos, envío gratis o precio por volumen",
+      "template": "Hola, cómo estas? Realizando la compra por aqui los costos son los mencionados en la misma publicación. Agradecemos te hayas comunicado, quedamos a las ordenes! MUNDO SHOP"
+    },
+    {
+      "categoria": "producto_no_disponible",
+      "descripcion": "Cuando el producto o variante consultada no está en stock",
+      "template": "Hola, cómo estas? por el momento no tenemos disponible Agradecemos te hayas comunicado, quedamos a las ordenes! MUNDO SHOP"
+    }
+  ],
+  "reglas_generales": [
+    "Siempre comenzar con 'Hola, cómo estas?' salvo en respuestas de seguimiento donde ya se saludó",
+    "Siempre terminar con 'Agradecemos te hayas comunicado, quedamos a las ordenes! MUNDO SHOP'",
+    "Usar vos en lugar de tú: 'podes', 'tenes', 'realizas'",
+    "Respuestas cortas y directas, sin rodeos ni explicaciones largas",
+    "No usar signos de apertura de exclamación ni interrogación (¡ ¿)",
+    "Escribir en minúsculas de forma general, sin mayúsculas en medio de oración",
+    "Confirmar disponibilidad con 'si, tenemos disponible!' de forma simple",
+    "Para envíos al interior siempre mencionar agencia DAC como medio de envío",
+    "Para problemas de compra que no permiten envío, sugerir opción de retiro y coordinar por mensaje interno",
+    "Para soporte post-venta siempre redirigir al mensaje interno de la compra, nunca resolver por preguntas públicas",
+    "Indicar costos de envío como aproximados usando la palabra 'aproximadamente'",
+    "Incluir links de ML cuando se recomienda otro producto de la tienda",
+    "Horario de atención y retiro: Lunes a Viernes 9:00 a 18:00 y Sábados 9:00 a 13:00",
+    "No dar la dirección exacta del local por políticas de ML, solo referencia geográfica",
+    "Los muebles y productos grandes se envían siempre desarmados en caja",
+    "Incluir contacto de armadores recomendados dentro del paquete, no gestionar el armado directamente",
+    "Para errores del sistema de ML, indicar que es un error de la app y sugerir contactar soporte de ML",
+    "Tono empático pero sin exagerar, no usar frases muy largas de cortesía",
+    "Si la pregunta es ambigua o incompleta, responder con 'en que podemos ayudarte?' para obtener más información"
+  ]
+}
