@@ -1,0 +1,23 @@
+node_modules/
+.env
+
+# Datos en caché y tokens — no subir
+data/ml_token.json
+data/stock_cache.json
+data/stock_result.json
+data/monthly_cache.json
+data/odoo_cache.json
+data/ventas_cache.json
+data/precios_cache.json
+data/ml_fees_cache.json
+data/shipping_costs_by_item.json
+data/images/
+data/debug_*.json
+
+# Sí subir estos (configuración del negocio)
+# data/reglas_negocio.json
+# data/qa_knowledge_base.json
+# data/sku_map_manual.json
+# data/respuestas_aprendidas.json
+# data/preguntas_por_publicacion.json
+# data/users.json
