@@ -1,0 +1,20 @@
+[
+  {
+    "id": "ece59ae3-eee8-4196-9b12-c2dd0bc6b586",
+    "username": "admin",
+    "name": "Administrador",
+    "role": "admin",
+    "salt": "aa8316f4cda7838063a4cb8f8d7d8f7a",
+    "hash": "a4b528ff53ce98d56ebb50f9f5c23c3b42b2418cd7731eb3ba54503ded96bedb14701fff25a1c58b88aaccdc60dd4f15713af425fac473caa68e74fa5eb65f8c",
+    "createdAt": "2026-03-28T11:48:24.604Z"
+  },
+  {
+    "id": "96ef3570-6933-41af-b20a-2e6efb20cea6",
+    "username": "mateo",
+    "name": "Mateo",
+    "role": "admin",
+    "salt": "d02c7885898344d5bb41b342025ce1bb",
+    "hash": "7895e362aac9946099d3cb33c84776d67dba20ee37e342ab2abcb8cb2d4d27dd8e0fda32de10dc98182128e98d68ec6f4b4ddbc7774d6c4abf30431c6ccbe0a7",
+    "createdAt": "2026-03-28T11:50:03.644Z"
+  }
+]
