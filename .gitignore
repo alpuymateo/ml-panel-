@@ -10,6 +10,9 @@ data/odoo_cache.json
 data/ventas_cache.json
 data/precios_cache.json
 data/ml_fees_cache.json
+data/mensajes_cache.json
+data/respuestas_malas.json
+data/item_detail_cache.json
 data/shipping_costs_by_item.json
 data/images/
 data/debug_*.json
