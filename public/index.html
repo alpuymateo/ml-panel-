@@ -1267,7 +1267,7 @@
               <option value="30">Últimos 30 días</option>
             </select>
           </div>
-          <button onclick="loadMensajes()" style="padding:8px 14px;background:#e5e7eb;color:#374151;border:none;border-radius:6px;font-size:13px;cursor:pointer;">↺ Actualizar</button>
+          <button onclick="loadMensajes(true)" style="padding:8px 14px;background:#e5e7eb;color:#374151;border:none;border-radius:6px;font-size:13px;cursor:pointer;">↺ Actualizar</button>
         </div>
         <div id="mensajes-list"></div>
       </div>
@@ -1293,15 +1293,22 @@
       <div id="analizar-tab-reglas" style="display:none">
         <div class="card" style="margin-bottom:16px;">
           <b style="font-size:14px;">Reglas e información del negocio</b>
-          <p style="font-size:12px;color:#6b7280;margin:6px 0 14px;">Claude usa esta información al generar respuestas. Ej: direcciones de retiro, políticas de envío, horarios, aclaraciones por categoría.</p>
+          <p style="font-size:12px;color:#6b7280;margin:6px 0 14px;">Claude filtra por contexto: post-venta ve Post-venta + Envíos + Retiros; preguntas ve Preguntas + Envíos; General aplica siempre.</p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
             <div style="flex:1;min-width:240px;">
               <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:4px;">Regla o información</label>
               <input type="text" id="regla-texto" placeholder="Ej: Los roperos se retiran en Av. Italia 1234" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
             </div>
-            <div style="min-width:130px;">
-              <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:4px;">Categoría (opcional)</label>
-              <input type="text" id="regla-categoria" placeholder="Ej: Envíos, Roperos" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+            <div style="min-width:150px;">
+              <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:4px;">Categoría</label>
+              <select id="regla-categoria" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+                <option value="General">General</option>
+                <option value="Envíos">Envíos</option>
+                <option value="Retiros">Retiros</option>
+                <option value="Post-venta">Post-venta</option>
+                <option value="Preguntas">Preguntas</option>
+                <option value="Tareas">Tareas</option>
+              </select>
             </div>
             <button onclick="agregarRegla()" style="padding:7px 16px;background:#7c3aed;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">+ Agregar</button>
           </div>
@@ -5053,17 +5060,19 @@ function omitirPendiente(questionId) {
 // ── Mensajes post-venta ───────────────────────────────────────────
 let mensajesData = [];
 
-async function loadMensajes() {
+async function loadMensajes(force = false) {
   const list = document.getElementById('mensajes-list');
   const count = document.getElementById('mensajes-count');
   list.innerHTML = '<p style="color:#9ca3af;font-size:13px;padding:16px;">Cargando mensajes...</p>';
   count.textContent = '';
   const dias = document.getElementById('mensajes-dias')?.value || 14;
-  const r = await fetch(`/api/ml/mensajes/pendientes?dias=${dias}`, { headers: authHeaders() });
+  const url = `/api/ml/mensajes/pendientes?dias=${dias}${force ? '&force=1' : ''}`;
+  const r = await fetch(url, { headers: authHeaders() });
   if (!r.ok) { list.innerHTML = '<p style="color:#ef4444;">Error al cargar</p>'; return; }
   const d = await r.json();
   mensajesData = d.threads || [];
-  count.textContent = `${mensajesData.length} hilos esperando respuesta`;
+  const cacheTag = d.cached ? ' <span style="color:#9ca3af;font-weight:normal;font-size:11px;">(cache)</span>' : '';
+  count.innerHTML = `${mensajesData.length} hilos esperando respuesta${cacheTag}`;
   renderMensajes();
 }
 
@@ -5107,7 +5116,13 @@ function renderMensajes() {
           <!-- Respuesta IA -->
           <div id="msg-ia-${t.pack_id}" style="display:none;margin-bottom:8px;">
             <div id="msg-accion-${t.pack_id}" style="display:none;margin-bottom:6px;padding:6px 10px;background:#fef9c3;border-radius:5px;font-size:12px;color:#713f12;"></div>
-            <label style="font-size:11px;color:#6b7280;font-weight:600;display:block;margin-bottom:4px;">Respuesta sugerida:</label>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+              <label style="font-size:11px;color:#6b7280;font-weight:600;">Respuesta sugerida:</label>
+              <button onclick="marcarRespuestaMala('${t.pack_id}')" id="msg-btn-mala-${t.pack_id}"
+                style="padding:2px 8px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;border-radius:5px;font-size:11px;cursor:pointer;">
+                👎 Mala respuesta
+              </button>
+            </div>
             <textarea id="msg-txt-${t.pack_id}" rows="3"
               style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;"></textarea>
           </div>
@@ -5183,6 +5198,27 @@ async function generarRespuestaMensaje(idx) {
     btn.disabled = false;
     alert('Error: ' + (d.error || 'desconocido'));
   }
+}
+
+async function marcarRespuestaMala(packId) {
+  const respuesta_mala = document.getElementById(`msg-txt-${packId}`)?.value?.trim();
+  if (!respuesta_mala) return;
+  const motivo = prompt('¿Por qué es mala? (opcional, ej: "agradece demasiado", "muy larga")') ?? '';
+  const t = mensajesData.find(x => x.pack_id == packId);
+  const historial = t ? t.messages.map(m => `[${m.from_buyer ? 'COMPRADOR' : 'VENDEDOR'}]: ${m.text}`).join('\n') : '';
+  await fetch('/api/ml/mensajes/feedback-malo', {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ historial, respuesta_mala, motivo })
+  });
+  // Limpiar textarea y regenerar
+  document.getElementById(`msg-txt-${packId}`).value = '';
+  document.getElementById(`msg-ia-${packId}`).style.display = 'none';
+  document.getElementById(`msg-btn-enviar-${packId}`).style.display = 'none';
+  const btnIA = document.getElementById(`msg-btn-ia-${packId}`);
+  if (btnIA) { btnIA.textContent = '🤖 Sugerir respuesta'; btnIA.disabled = false; }
+  const status = document.getElementById(`msg-status-${packId}`);
+  if (status) { status.style.color = '#059669'; status.textContent = '✓ Feedback guardado — regenerá para una nueva respuesta'; setTimeout(() => status.textContent = '', 3000); }
 }
 
 async function enviarMensaje(packId, buyerId) {
@@ -5275,6 +5311,16 @@ async function eliminarSkuMap(sku) {
   loadSkuMap();
 }
 
+const REGLA_CAT_COLORS = {
+  'General':    { bg:'#f0fdf4', color:'#166534', border:'#bbf7d0' },
+  'Envíos':     { bg:'#eff6ff', color:'#1e40af', border:'#bfdbfe' },
+  'Retiros':    { bg:'#fefce8', color:'#713f12', border:'#fde68a' },
+  'Post-venta': { bg:'#fdf4ff', color:'#6b21a8', border:'#e9d5ff' },
+  'Preguntas':  { bg:'#fff7ed', color:'#7c2d12', border:'#fed7aa' },
+  'Tareas':     { bg:'#f0f9ff', color:'#0c4a6e', border:'#bae6fd' },
+};
+const REGLA_CAT_ORDER = ['General','Envíos','Retiros','Post-venta','Preguntas','Tareas'];
+
 async function loadReglas() {
   const list = document.getElementById('reglas-list');
   if (!list) return;
@@ -5285,12 +5331,28 @@ async function loadReglas() {
     document.getElementById('reglas-interpretacion').style.display = 'none';
     return;
   }
-  list.innerHTML = reglas.map(r => `
-    <div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px;">
-      ${r.categoria ? `<span style="font-size:11px;background:#ede9fe;color:#6d28d9;padding:2px 8px;border-radius:10px;white-space:nowrap;">${r.categoria}</span>` : ''}
-      <span style="flex:1;font-size:13px;color:#111827;">${r.texto}</span>
-      <button onclick="eliminarRegla(${r.id})" style="padding:4px 10px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;border-radius:5px;font-size:12px;cursor:pointer;">Eliminar</button>
-    </div>`).join('');
+  // Agrupar por categoría
+  const grupos = {};
+  for (const reg of reglas) {
+    const cat = reg.categoria || 'General';
+    if (!grupos[cat]) grupos[cat] = [];
+    grupos[cat].push(reg);
+  }
+  const catOrden = [...REGLA_CAT_ORDER.filter(c => grupos[c]), ...Object.keys(grupos).filter(c => !REGLA_CAT_ORDER.includes(c))];
+  list.innerHTML = catOrden.map(cat => {
+    const c = REGLA_CAT_COLORS[cat] || { bg:'#f9fafb', color:'#374151', border:'#e5e7eb' };
+    return `<div class="card" style="margin-bottom:12px;padding:0;overflow:hidden;border:1px solid ${c.border};">
+      <div style="background:${c.bg};padding:8px 14px;border-bottom:1px solid ${c.border};">
+        <span style="font-size:12px;font-weight:700;color:${c.color};">${cat}</span>
+        <span style="font-size:11px;color:#9ca3af;margin-left:6px;">${grupos[cat].length} regla${grupos[cat].length > 1 ? 's' : ''}</span>
+      </div>
+      ${grupos[cat].map(reg => `
+        <div style="display:flex;align-items:center;gap:12px;padding:9px 14px;border-bottom:1px solid #f3f4f6;">
+          <span style="flex:1;font-size:13px;color:#111827;">${reg.texto}</span>
+          <button onclick="eliminarRegla(${reg.id})" style="padding:3px 9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;border-radius:5px;font-size:12px;cursor:pointer;flex-shrink:0;">Eliminar</button>
+        </div>`).join('')}
+    </div>`;
+  }).join('');
   interpretarReglas();
 }
 
@@ -5329,7 +5391,6 @@ async function agregarRegla() {
     body: JSON.stringify({ texto, categoria })
   });
   document.getElementById('regla-texto').value = '';
-  document.getElementById('regla-categoria').value = '';
   loadReglas();
 }
 
